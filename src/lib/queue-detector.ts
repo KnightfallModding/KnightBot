@@ -28,22 +28,36 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
   potentiallyBuggedQueues: string[] = []
   countOfPlayersInCurrentQueue: number = 0
 
-  constructor(region: Regions) {
+  #region: keyof typeof Regions
+
+  constructor(region: keyof typeof Regions) {
     super(Photon.ConnectionProtocol.Ws, appId, appVersion)
 
-    this.logger = new Photon.Logger(`[${region}]`, dev ? Photon.LogLevel.DEBUG : Photon.LogLevel.INFO)
+    const regionValue = Regions[region]
+
+    this.logger = new Photon.Logger(`[${regionValue}]`, dev ? Photon.LogLevel.DEBUG : Photon.LogLevel.INFO)
     this.logger.debug(`Init ${this.getNameServerAddress()}`)
 
-    this.connectToRegionMaster(region)
+    this.connectToRegionMaster(regionValue)
     this.connectToNameServer({
       region,
       lobbyType: Photon.LoadBalancing.Constants.LobbyType.Default,
     })
+
+    this.#region = region
   }
 
   override onAppStats(_errorCode: number, _errorMsg: string, stats: Record<string, string>) {
     // `stats.PeerCount` gets the count of all active players
     this.players = { active: parseInt(stats.peerCount) }
+  }
+
+  override onError(_errorCode: number, errorMsg: string): void {
+    this.logger.error(errorMsg)
+
+    setTimeout(() => {
+      queueDetectors[this.#region] = new QueueDetector(this.#region)
+    }, 3_000)
   }
 
   override onRoomListUpdate(
