@@ -6,6 +6,7 @@ import { dev } from './constants'
 
 export const appId = envParseString('PHOTON_APP_ID', '<no-app-id>')
 export const appVersion = envParseString('PHOTON_APP_VERSION', '1.0')
+const defaultReconnectDelay = 3_000
 
 export enum Regions {
   NA = 'US',
@@ -29,8 +30,9 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
   countOfPlayersInCurrentQueue: number = 0
 
   #region: keyof typeof Regions
+  #reconnectDelay: number
 
-  constructor(region: keyof typeof Regions) {
+  constructor(region: keyof typeof Regions, lastDelay = defaultReconnectDelay) {
     super(Photon.ConnectionProtocol.Ws, appId, appVersion)
 
     const regionValue = Regions[region]
@@ -45,6 +47,7 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
     })
 
     this.#region = region
+    this.#reconnectDelay = lastDelay + 2_000
   }
 
   override onAppStats(_errorCode: number, _errorMsg: string, stats: Record<string, string>) {
@@ -56,8 +59,8 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
     this.logger.error(errorMsg)
 
     setTimeout(() => {
-      queueDetectors[this.#region] = new QueueDetector(this.#region)
-    }, 3_000)
+      queueDetectors[this.#region] = new QueueDetector(this.#region, this.#reconnectDelay)
+    }, this.#reconnectDelay)
   }
 
   override onRoomListUpdate(
