@@ -1,8 +1,10 @@
+import { container } from '@sapphire/framework'
 import { envParseString } from '@skyra/env-utilities'
 
 import { Photon } from '$lib/photon'
 
 import { dev } from './constants'
+import { PlayerTracker } from './player-tracker'
 
 export const appId = envParseString('PHOTON_APP_ID', '<no-app-id>')
 export const appVersion = envParseString('PHOTON_APP_VERSION', '1.0')
@@ -32,12 +34,14 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
   #region: keyof typeof Regions
   #reconnectDelay: number
 
-  constructor(region: keyof typeof Regions, lastDelay = defaultReconnectDelay) {
+  playerTrackers: PlayerTracker[] = []
+
+  constructor(region: Regions, lastDelay = defaultReconnectDelay) {
     super(Photon.ConnectionProtocol.Ws, appId, appVersion)
 
-    const regionValue = Regions[region]
+    const regionValue = region
 
-    this.logger = new Photon.Logger(`[${regionValue}]`, dev ? Photon.LogLevel.DEBUG : Photon.LogLevel.INFO)
+    this.logger = new Photon.Logger(`[${regionValue}]`, dev ? Photon.LogLevel.INFO : Photon.LogLevel.INFO)
     this.logger.debug(`Init ${this.getNameServerAddress()}`)
 
     this.connectToRegionMaster(regionValue)
@@ -46,7 +50,7 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
       lobbyType: Photon.LoadBalancing.Constants.LobbyType.Default,
     })
 
-    this.#region = region
+    this.#region = region.toString() as keyof typeof Regions
     this.#reconnectDelay = lastDelay + 2_000
   }
 
@@ -59,7 +63,7 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
     this.logger.error(errorMsg)
 
     setTimeout(() => {
-      queueDetectors[this.#region] = new QueueDetector(this.#region, this.#reconnectDelay)
+      queueDetectors[this.#region] = new QueueDetector(Regions[this.#region], this.#reconnectDelay)
     }, this.#reconnectDelay)
   }
 
@@ -70,6 +74,14 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
     roomsRemoved: Photon.LoadBalancing.RoomInfo[]
   ) {
     this.logger.debug('Rooms updated:', rooms.length, rooms[0]?.name, roomsUpdated, roomsAdded, roomsRemoved)
+
+    if (roomsAdded.length > 0) {
+      for (const room of roomsAdded) {
+        container.logger.debug(`Found room ${room.name}`)
+
+        this.playerTrackers.push(new PlayerTracker(room, this.#region))
+      }
+    }
 
     if (roomsAdded.length === 1) this.setCurrentQueue(roomsAdded[0])
     else if (roomsAdded.length > 1) {
@@ -93,9 +105,11 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
       }
     }
 
-    if (roomsRemoved.length) {
+    if (roomsRemoved.length > 0) {
       for (const room of roomsRemoved) {
         if (this.currentQueue?.name === room.name) this.currentQueue = null
+
+        this.playerTrackers = this.playerTrackers.filter(tracker => tracker.room.name !== room.name)
       }
     }
   }
