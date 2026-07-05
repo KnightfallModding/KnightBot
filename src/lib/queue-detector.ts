@@ -1,6 +1,6 @@
 import { envParseString } from '@skyra/env-utilities'
 
-import { Photon } from '$lib/photon'
+import { ConnectionProtocol, Logger, LogLevel, PhotonClient, type RoomInfo } from '$lib/photon'
 
 import { dev } from './constants'
 
@@ -19,8 +19,9 @@ interface Queue {
   timer: number
 }
 
-export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
-  override logger: Photon.Logger
+export class QueueDetector {
+  readonly client: PhotonClient
+  readonly logger: Logger
 
   totalGames?: number
   players = { active: -1 }
@@ -31,44 +32,61 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
 
   #region: keyof typeof Regions
   #reconnectDelay: number
+  #reconnectScheduled = false
 
   constructor(region: keyof typeof Regions, lastDelay = defaultReconnectDelay) {
-    super(Photon.ConnectionProtocol.Ws, appId, appVersion)
-
     const regionValue = Regions[region]
 
-    this.logger = new Photon.Logger(`[${regionValue}]`, dev ? Photon.LogLevel.DEBUG : Photon.LogLevel.INFO)
-    this.logger.debug(`Init ${this.getNameServerAddress()}`)
-
-    this.connectToRegionMaster(regionValue)
-    this.connectToNameServer({
-      region,
-      lobbyType: Photon.LoadBalancing.Constants.LobbyType.Default,
+    this.logger = new Logger(`[${regionValue}]`, dev ? LogLevel.DEBUG : LogLevel.INFO)
+    this.client = new PhotonClient({
+      appId,
+      appVersion,
+      protocol: ConnectionProtocol.Ws,
+      logger: this.logger,
     })
 
     this.#region = region
     this.#reconnectDelay = lastDelay + 2_000
+
+    this.client.on('appStats', stats => {
+      // `stats.peerCount` is the count of all active players
+      this.players = { active: stats.peerCount }
+    })
+
+    this.client.on('roomListUpdate', (rooms, roomsUpdated, roomsAdded, roomsRemoved) => {
+      this.#onRoomListUpdate(rooms, roomsUpdated, roomsAdded, roomsRemoved)
+    })
+
+    this.client.on('error', error => {
+      this.logger.error(error.message)
+      this.#scheduleReconnect()
+    })
+
+    void this.#connect(regionValue)
   }
 
-  override onAppStats(_errorCode: number, _errorMsg: string, stats: Record<string, string>) {
-    // `stats.PeerCount` gets the count of all active players
-    this.players = { active: parseInt(stats.peerCount) }
+  async #connect(region: Regions) {
+    this.logger.debug(`Init ${this.client.nameServerAddress}`)
+
+    try {
+      await this.client.connectToRegionMaster(region)
+      this.logger.info('Connected and joined lobby')
+    } catch {
+      // The `error` listener logged the failure and scheduled the reconnection already.
+    }
   }
 
-  override onError(_errorCode: number, errorMsg: string): void {
-    this.logger.error(errorMsg)
+  #scheduleReconnect() {
+    if (this.#reconnectScheduled) return
+    this.#reconnectScheduled = true
 
     setTimeout(() => {
+      this.client.disconnect()
       queueDetectors[this.#region] = new QueueDetector(this.#region, this.#reconnectDelay)
     }, this.#reconnectDelay)
   }
 
-  override onRoomListUpdate(
-    rooms: Photon.LoadBalancing.RoomInfo[],
-    roomsUpdated: Photon.LoadBalancing.RoomInfo[],
-    roomsAdded: Photon.LoadBalancing.RoomInfo[],
-    roomsRemoved: Photon.LoadBalancing.RoomInfo[]
-  ) {
+  #onRoomListUpdate(rooms: RoomInfo[], roomsUpdated: RoomInfo[], roomsAdded: RoomInfo[], roomsRemoved: RoomInfo[]) {
     this.logger.debug('Rooms updated:', rooms.length, rooms[0]?.name, roomsUpdated, roomsAdded, roomsRemoved)
 
     if (roomsAdded.length === 1) this.setCurrentQueue(roomsAdded[0])
@@ -100,7 +118,7 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
     }
   }
 
-  private setCurrentQueue({ name, playerCount }: Photon.LoadBalancing.RoomInfo) {
+  private setCurrentQueue({ name, playerCount }: RoomInfo) {
     this.currentQueue = {
       name: name,
       players: playerCount,
@@ -112,6 +130,6 @@ export class QueueDetector extends Photon.LoadBalancing.LoadBalancingClient {
 }
 
 export const queueDetectors = {
-  NA: new QueueDetector(Regions.NA),
-  EU: new QueueDetector(Regions.EU),
+  NA: new QueueDetector('NA'),
+  EU: new QueueDetector('EU'),
 } satisfies Partial<Record<keyof typeof Regions, QueueDetector>>
