@@ -1,6 +1,6 @@
 import { ApplyOptions } from '@sapphire/decorators'
 import { Command } from '@sapphire/framework'
-import { objectEntries, objectValues } from '@sapphire/utilities'
+import { objectKeys, objectValues } from '@sapphire/utilities'
 import { Colors, EmbedBuilder, MessageFlags } from 'discord.js'
 
 import { queueDetectors, Regions } from '$lib/queue-detector'
@@ -21,7 +21,7 @@ export class UserCommand extends Command {
             input
               .setName('region')
               .setDescription('The region the room is in.')
-              .addChoices(objectEntries(Regions).map(([key, value]) => ({ name: key, value })))
+              .addChoices(objectKeys(Regions).map(key => ({ name: key, value: key })))
           )
           .addBooleanOption(input =>
             input //

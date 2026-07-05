@@ -1,18 +1,23 @@
 import { objectKeys } from '@sapphire/utilities'
 
-import { Photon } from './photon'
+import { Logger, LogLevel, PhotonClient, type RoomInfo } from '$lib/photon-next'
+
 import { appId, appVersion, Regions } from './queue-detector'
 
+/**
+ * Payload of PUN RPC events (code 200) on the Json subprotocol: what Photon documents as a
+ * byte-keyed hashtable arrives as an object keyed by STRINGIFIED parameter numbers.
+ */
 interface RPCContent {
-  // Actor ID
+  /** Actor/view ID (PUN netViewID; owner = viewID/1000 by PUN convention). */
   '0': number
-  // Data from the RPC
+  /** RPC data payload — always this literal: Photon's JSON bridge cannot serialize the binary PUN payload. */
   '1': 'serialization error'
-  // Unknown property
+  /** Unknown (PUN uses key 2 for the server timestamp). */
   '2': number
-  // Unknown property
+  /** Unknown (PUN uses key 4 for the RPC parameter array). */
   '4': unknown[]
-  // RPC Code
+  /** RPC method shortcut index — the game's RPC list index. */
   '5': number
 }
 
@@ -21,72 +26,98 @@ enum RPCCodes {
   RPC_WIN = 29,
 }
 
-export class PlayerTracker extends Photon.LoadBalancing.LoadBalancingClient {
-  room: Photon.LoadBalancing.RoomInfo
-  region: keyof typeof Regions
+/** PUN RPC event code. */
+const RPC_EVENT_CODE = 200
+
+/**
+ * Joins a detected room with its own PhotonClient to enumerate the players in it.
+ * Leaves (and disconnects) on game over (RPC_WIN) or once the bot is the only player left.
+ */
+export class PlayerTracker {
+  readonly client: PhotonClient
+  readonly room: RoomInfo
   players: Record<number, string> = {}
   masterActorNr = 0
   masterName?: string
+
+  readonly #logger: Logger
   #errored = false
+  #destroyed = false
 
-  constructor(room: Photon.LoadBalancing.RoomInfo, region: keyof typeof Regions) {
-    super(Photon.ConnectionProtocol.Ws, appId, appVersion)
-    this.autoJoinLobby = false
-
-    this.logger = new Photon.Logger(`[${room.name}]`, Photon.LogLevel.INFO)
-
+  constructor(room: RoomInfo, region: keyof typeof Regions) {
     this.room = room
-    this.region = region
-    this.myActor().setName('<b><color=green>KnightBot</color> <color=yellow>Tracker</color></b>')
-    this.myActor().setCustomProperty('UUID', 'knightbot')
-    this.connectToRegionMaster(region)
-    this.connectToNameServer({
-      region,
-      lobbyType: Photon.LoadBalancing.Constants.LobbyType.Default,
+    this.#logger = new Logger(`[${room.name}]`, LogLevel.INFO)
+    this.client = new PhotonClient({
+      appId,
+      appVersion,
+      region: Regions[region],
+      joinLobby: false,
+      name: '<b><color=green>KnightBot</color> <color=yellow>Tracker</color></b>',
+      customProperties: { UUID: 'knightbot' },
+      logger: this.#logger,
+    })
+
+    this.client.on('actorJoin', actor => {
+      if (actor.isLocal) return
+
+      this.players[actor.actorNr] = actor.name
+    })
+
+    this.client.on('actorLeave', (actor, cleanup) => {
+      delete this.players[actor.actorNr]
+
+      // cleanup leaves cascade from our own teardown — only a real leave may trigger "bot alone → leave"
+      if (!cleanup && objectKeys(this.players).length === 1) void this.destroy()
+    })
+
+    this.client.on('masterClientChange', current => this.#updateMasterClient(current?.actorNr ?? 0))
+
+    this.client.on('photonEvent', ({ code, data }) => {
+      if (code !== RPC_EVENT_CODE) return
+
+      const isRpcGameOver = (data as RPCContent | undefined)?.['5'] === RPCCodes.RPC_WIN
+      if (isRpcGameOver) void this.destroy()
+    })
+
+    this.client.on('error', error => {
+      this.#errored = true
+      this.#logger.error('Client error:', error.message)
+      void this.destroy()
+    })
+
+    void this.#start().catch((error: unknown) => {
+      this.#errored = true
+      this.#logger.error('Failed to track room:', error)
+      void this.destroy()
     })
   }
 
-  override onStateChange(state: number): void {
-    if (state === Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster) {
-      this.joinRoom(this.room.name)
+  get errored() {
+    return this.#errored
+  }
+
+  async #start(): Promise<void> {
+    await this.client.connect()
+    await this.client.joinRoom(this.room.name)
+
+    // Seed from the roster excluding the local actor; the self Join event then adds the bot
+    // (legacy parity: the bot IS in its own list)
+    for (const actor of this.client.actors.values()) {
+      if (actor.isLocal) continue
+
+      this.players[actor.actorNr] = actor.name
     }
-  }
 
-  override onJoinRoom(): void {
-    for (const player of this.myRoomActorsArray()) {
-      if (player.isLocal) continue
-
-      this.players[player.actorNr] = player.name
-    }
-
-    this.updateMasterClient()
-  }
-
-  override onActorJoin(player: Photon.LoadBalancing.Actor): void {
-    this.players[player.actorNr] = player.name
-
-    this.updateMasterClient()
-  }
-
-  override onActorLeave(player: Photon.LoadBalancing.Actor): void {
-    delete this.players[player.actorNr]
-
-    this.updateMasterClient()
-
-    if (objectKeys(this.players).length === 1) this.leaveRoom()
-  }
-
-  override onMyRoomPropertiesChange(): void {
-    this.updateMasterClient()
+    this.#updateMasterClient(this.client.masterClientId)
   }
 
   /**
    * Reconciles the tracked master client with the room's current master and
    * logs the transition. The master changes either explicitly (a properties
-   * event) or implicitly when the current master leaves the room.
+   * event) or implicitly when the current master leaves the room — the client
+   * folds both into `masterClientChange`.
    */
-  private updateMasterClient(): void {
-    const masterActorNr = this.myRoomMasterActorNr()
+  #updateMasterClient(masterActorNr: number): void {
     if (masterActorNr === this.masterActorNr) return
 
     const previousActorNr = this.masterActorNr
@@ -99,32 +130,25 @@ export class PlayerTracker extends Photon.LoadBalancing.LoadBalancingClient {
     if (masterActorNr === 0) return
 
     if (previousActorNr === 0) {
-      this.logger.info(`Master client: ${this.masterName ?? masterActorNr}`)
+      this.#logger.info(`Master client: ${this.masterName ?? masterActorNr}`)
     } else {
-      this.logger.info(
+      this.#logger.info(
         `Master client changed: ${previousName ?? previousActorNr} → ${this.masterName ?? masterActorNr}`
       )
     }
   }
 
-  override onEvent(code: number, content: unknown): void {
-    // When code is 200 (RPC), get its name
-    if (code === 200) {
-      const isRpcGameOver = (content as RPCContent)[5] === RPCCodes.RPC_WIN
-      if (isRpcGameOver) this.leaveRoom()
+  /** Idempotent teardown: leave the room when joined, then disconnect the client. */
+  async destroy(): Promise<void> {
+    if (this.#destroyed) return
+    this.#destroyed = true
+
+    try {
+      await this.client.leaveRoom()
+    } catch {
+      // Leave failures are tolerated — teardown proceeds regardless
     }
-  }
 
-  override onError(): void {
-    this.errored = true
-    this.disconnect()
-  }
-
-  get errored() {
-    return this.#errored
-  }
-
-  private set errored(value: boolean) {
-    this.#errored = value
+    this.client.disconnect()
   }
 }
