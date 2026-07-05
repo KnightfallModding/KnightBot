@@ -6,8 +6,8 @@ import {
   PhotonTimeoutError,
 } from './errors'
 import type { Logger } from './logger'
-import { classifyMessage, decodeFrames, encodeOperation, encodePing, getParam } from './protocol'
 import type { PhotonMessage } from './protocol'
+import { classifyMessage, decodeFrames, encodeOperation, encodePing, getParam } from './protocol'
 import type { DisconnectReason, ServerName, Vals, WebSocketConstructor, WebSocketLike, WireParams } from './types'
 
 export interface PhotonPeerOptions {

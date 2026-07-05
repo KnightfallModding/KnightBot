@@ -4,15 +4,7 @@
 
 import assert from 'node:assert/strict'
 import type { EventEmitter } from 'node:events'
-import {
-  Logger,
-  LogLevel,
-  PhotonAbortError,
-  PhotonClient,
-  PhotonConnectionError,
-  PhotonOperationError,
-  PhotonTimeoutError,
-} from './index'
+
 import type {
   Actor,
   AppStats,
@@ -24,6 +16,15 @@ import type {
   RoomListUpdate,
   WebSocketConstructor,
   WebSocketLike,
+} from './index'
+import {
+  Logger,
+  LogLevel,
+  PhotonAbortError,
+  PhotonClient,
+  PhotonConnectionError,
+  PhotonOperationError,
+  PhotonTimeoutError,
 } from './index'
 
 // ---------------------------------------------------------------------------

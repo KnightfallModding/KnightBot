@@ -118,64 +118,71 @@ class PhotonOperationError extends PhotonError       // { operation, errorCode, 
 interface PhotonClientOptions {
   appId: string
   appVersion: string
-  region: string                       // e.g. 'US' | 'EU' — the wire value sent to the nameserver
-  protocol?: 'ws' | 'wss'              // default 'ws' (bot parity)
-  nameServerAddress?: string           // default per protocol, see §Wire
+  region: string // e.g. 'US' | 'EU' — the wire value sent to the nameserver
+  protocol?: 'ws' | 'wss' // default 'ws' (bot parity)
+  nameServerAddress?: string // default per protocol, see §Wire
   userId?: string
-  name?: string                        // local actor display name (ActorProperties.PlayerName 255)
-  customProperties?: Record<string, unknown>  // local actor props, sent with join/create
-  joinLobby?: boolean                  // default true — auto JoinLobby after master auth
-  keepMasterConnection?: boolean       // default false — parity: master socket dropped on room join
-  logger?: Logger                      // default: new Logger(); child peers get suffixed prefixes
-  operationTimeoutMs?: number          // default 15_000
-  connectTimeoutMs?: number            // default 15_000
-  keepAliveMs?: number                 // default 3_000
-  webSocketImpl?: WebSocketLike        // test injection
+  name?: string // local actor display name (ActorProperties.PlayerName 255)
+  customProperties?: Record<string, unknown> // local actor props, sent with join/create
+  joinLobby?: boolean // default true — auto JoinLobby after master auth
+  keepMasterConnection?: boolean // default false — parity: master socket dropped on room join
+  logger?: Logger // default: new Logger(); child peers get suffixed prefixes
+  operationTimeoutMs?: number // default 15_000
+  connectTimeoutMs?: number // default 15_000
+  keepAliveMs?: number // default 3_000
+  webSocketImpl?: WebSocketLike // test injection
 }
 
 type ClientState =
-  | 'uninitialized' | 'connectingToNameServer' | 'connectingToMaster' | 'connectedToMaster'
-  | 'joinedLobby' | 'connectingToGameServer' | 'joined' | 'disconnected' | 'error'
+  | 'uninitialized'
+  | 'connectingToNameServer'
+  | 'connectingToMaster'
+  | 'connectedToMaster'
+  | 'joinedLobby'
+  | 'connectingToGameServer'
+  | 'joined'
+  | 'disconnected'
+  | 'error'
 
 interface PhotonClientEvents {
   stateChange: [state: ClientState, previous: ClientState]
-  error: [error: PhotonError]                    // socket-level/unexpected failures (NOT rejected ops)
-  disconnect: [reason: DisconnectReason]         // fired once when the client leaves the wire entirely
-  appStats: [stats: AppStats]                    // { peerCount, masterPeerCount, gameCount } as numbers
+  error: [error: PhotonError] // socket-level/unexpected failures (NOT rejected ops)
+  disconnect: [reason: DisconnectReason] // fired once when the client leaves the wire entirely
+  appStats: [stats: AppStats] // { peerCount, masterPeerCount, gameCount } as numbers
   lobbyStats: [stats: LobbyStatsEntry[]]
-  roomList: [rooms: RoomInfo[]]                  // full GameList snapshot
-  roomListUpdate: [update: RoomListUpdate]       // { rooms, updated, added, removed } — same diff
-                                                 // semantics as legacy GameListUpdate handling
-  actorJoin: [actor: Actor]                      // ALSO fires for the local actor's own Join event
-                                                 // (legacy parity — consumers rely on it)
-  actorLeave: [actor: Actor, cleanup: boolean]   // cleanup=true when leaving/teardown clears the roster
+  roomList: [rooms: RoomInfo[]] // full GameList snapshot
+  roomListUpdate: [update: RoomListUpdate] // { rooms, updated, added, removed } — same diff
+  // semantics as legacy GameListUpdate handling
+  actorJoin: [actor: Actor] // ALSO fires for the local actor's own Join event
+  // (legacy parity — consumers rely on it)
+  actorLeave: [actor: Actor, cleanup: boolean] // cleanup=true when leaving/teardown clears the roster
   actorSuspend: [actor: Actor]
   actorPropertiesChange: [actor: Actor, changed: Record<string, unknown>]
   roomPropertiesChange: [changed: Record<string, unknown>]
   masterClientChange: [current: Actor | undefined, previousActorNr: number]
-  photonEvent: [event: { code: number; data: unknown; actorNr: number }]  // custom/unhandled events
-                                                 // data = vals[245], actorNr = vals[254]
-  serverError: [info: unknown]                   // ErrorInfo event (251), payload vals[218]
+  photonEvent: [event: { code: number; data: unknown; actorNr: number }] // custom/unhandled events
+  // data = vals[245], actorNr = vals[254]
+  serverError: [info: unknown] // ErrorInfo event (251), payload vals[218]
 }
 
 class PhotonClient extends EventEmitter<PhotonClientEvents> {
   readonly state: ClientState
   readonly myActor: Actor
-  readonly room: Room | undefined                // set while joined
-  readonly rooms: RoomInfo[]                     // lobby room list (kept in sync)
-  readonly masterClientId: number                // effective: raw masterClientId || lowest actorNr; 0 if unknown
+  readonly room: Room | undefined // set while joined
+  readonly rooms: RoomInfo[] // lobby room list (kept in sync)
+  readonly masterClientId: number // effective: raw masterClientId || lowest actorNr; 0 if unknown
   readonly masterClient: Actor | undefined
-  readonly actors: ReadonlyMap<number, Actor>    // joined-room roster incl. local actor
-  connect(): Promise<void>                       // resolves at joinedLobby (or connectedToMaster if !joinLobby)
+  readonly actors: ReadonlyMap<number, Actor> // joined-room roster incl. local actor
+  connect(): Promise<void> // resolves at joinedLobby (or connectedToMaster if !joinLobby)
   joinRoom(name: string, options?: { createIfNotExists?: boolean; expectedUsers?: string[] }): Promise<Room>
   createRoom(name?: string, options?: CreateRoomOptions): Promise<Room>
   joinRandomRoom(options?: JoinRandomRoomOptions): Promise<Room>
   leaveRoom(): Promise<void>
-  raiseEvent(code: number, data?: unknown, options?: RaiseEventOptions): void   // throws PhotonStateError if not joined
+  raiseEvent(code: number, data?: unknown, options?: RaiseEventOptions): void // throws PhotonStateError if not joined
   changeGroups(remove?: number[] | null, add?: number[] | null): void
-  setName(name: string): void                    // pre-join: buffered; post-join: SetProperties op
-  setCustomProperty(key: string, value: unknown): void  // same buffering rule
-  disconnect(): void                             // tear down all peers; rejects in-flight lifecycle promises
+  setName(name: string): void // pre-join: buffered; post-join: SetProperties op
+  setCustomProperty(key: string, value: unknown): void // same buffering rule
+  disconnect(): void // tear down all peers; rejects in-flight lifecycle promises
 }
 ```
 
@@ -224,7 +231,7 @@ NOT emit `actorJoin` (legacy parity — consumers seed from the resolved room/`c
   mark suspended + `actorSuspend`; else remove from roster + `actorLeave(actor, false)`.
 - Disconnect (252): mark suspended + `actorSuspend`.
 - PropertiesChanged (253): param 254 TargetActorNr > 0 → update that actor's props (ignore unknown)
-  + `actorPropertiesChange`; else room._updateFromProps(vals[251]) + `roomPropertiesChange`.
+  - `actorPropertiesChange`; else room.\_updateFromProps(vals[251]) + `roomPropertiesChange`.
 - ErrorInfo (251): emit `serverError` with vals[218].
 - Anything else: emit `photonEvent { code, data: vals[245], actorNr: vals[254] }`.
 
@@ -257,7 +264,7 @@ backoff-recreate loop).
 - **Actor**: `{ actorNr, name, userId, isLocal, suspended, customProperties (readonly view), getCustomProperty(key) }`.
   Plain data holder; mutations flow through the client.
 - **RoomInfo** (lobby listing): `name, playerCount, maxPlayers, isOpen, isVisible, removed,
-  customProperties, propsListedInLobby`, updated from GameProperties byte keys
+customProperties, propsListedInLobby`, updated from GameProperties byte keys
   (255 maxPlayers, 254 isVisible, 253 isOpen, 252 playerCount, 251 removed, 250 propsListedInLobby,
   249 cleanupCacheOnLeave, 248 masterClientId, 245 roomTTL, 246 playerTTL, 247 expectedUsers;
   non-numeric keys → custom properties, strict-diffed).
@@ -278,7 +285,7 @@ ParameterCode/ErrorCode tables — they're small and aid debugging): `OperationC
 ## Verification (smoke.ts)
 
 Self-contained behavioral test, run as `node dist/lib/photon-next/smoke.js` after `npm run build`.
-No network: a `FakePhotonServer` implements the WebSocket interface (constructor + on* properties +
+No network: a `FakePhotonServer` implements the WebSocket interface (constructor + on\* properties +
 send/close), scripted per the wire shapes above, injected via `webSocketImpl`. It must exercise:
 
 1. connect(): session frame → NS auth (assert exact `{req, vals}` sent) → master auth with secret →
