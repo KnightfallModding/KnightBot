@@ -14,29 +14,27 @@ import { maxPlayers } from 'commands/General/queue'
 })
 export class UserCommand extends Command {
   public override registerApplicationCommands(registry: Command.Registry) {
-    registry.registerChatInputCommand(
-      builder =>
-        builder //
-          .setName(this.name)
-          .setDescription(this.description)
-          .addStringOption(input =>
-            input //
-              .setName('region')
-              .setDescription('The region the lobby is located in')
-              .addChoices(objectEntries(Regions).map(([name, value]) => ({ name: value, value: name })))
-          )
-          .addStringOption(input =>
-            input //
-              .setName('lobby')
-              .setDescription('The lobby to check')
-              .setAutocomplete(true)
-          )
-          .addBooleanOption(input =>
-            input //
-              .setName('hidden')
-              .setDescription('Make the input visible to everyone. Defaults to false')
-          ),
-      { guildIds: ['1224423183155728414'] }
+    registry.registerChatInputCommand(builder =>
+      builder //
+        .setName(this.name)
+        .setDescription(this.description)
+        .addStringOption(input =>
+          input //
+            .setName('region')
+            .setDescription('The region the lobby is located in')
+            .addChoices(objectEntries(Regions).map(([name, value]) => ({ name: value, value: name })))
+        )
+        .addStringOption(input =>
+          input //
+            .setName('lobby')
+            .setDescription('The lobby to check')
+            .setAutocomplete(true)
+        )
+        .addBooleanOption(input =>
+          input //
+            .setName('hidden')
+            .setDescription('Make the input visible to everyone. Defaults to false')
+        )
     )
   }
 
