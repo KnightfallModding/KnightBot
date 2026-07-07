@@ -144,6 +144,8 @@ export enum EventCode {
   ErrorInfo = 251,
   /** Token refresh sent by Photon before the current one times out. */
   AuthEvent = 223,
+  /** RPC sent inside a room */
+  RPC = 200,
 }
 
 /** Codes for parameters of operations and events. */

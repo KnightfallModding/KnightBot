@@ -7,8 +7,8 @@ import { bold, ChatInputCommandInteraction, Colors, EmbedBuilder, MessageFlags }
 import { dev } from '$lib/constants'
 import { queueDetectors } from '$lib/queue-detector'
 
-const maxPlayers = envParseNumber('PHOTON_MAX_PLAYERS', 28)
-const queueTimer = envParseNumber('PHOTON_QUEUE_TIMER', 120)
+export const maxPlayers = envParseNumber('PHOTON_MAX_PLAYERS', 28)
+export const queueTimer = envParseNumber('PHOTON_QUEUE_TIMER', 120)
 
 @ApplyOptions<Command.Options>({
   name: 'queue',

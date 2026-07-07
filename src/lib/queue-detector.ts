@@ -3,6 +3,7 @@ import { envParseString } from '@skyra/env-utilities'
 import { ConnectionProtocol, Logger, LogLevel, PhotonClient, type RoomInfo } from '$lib/photon'
 
 import { dev } from './constants'
+import { PlayerTracker } from './player-tracker'
 
 export const appId = envParseString('PHOTON_APP_ID', '<no-app-id>')
 export const appVersion = envParseString('PHOTON_APP_VERSION', '1.0')
@@ -29,6 +30,7 @@ export class QueueDetector {
   hasQueueConflict = false
   potentiallyBuggedQueues: string[] = []
   countOfPlayersInCurrentQueue: number = 0
+  playerTrackers: PlayerTracker[] = []
 
   #region: keyof typeof Regions
   #reconnectDelay: number
@@ -88,6 +90,20 @@ export class QueueDetector {
 
   #onRoomListUpdate(rooms: RoomInfo[], roomsUpdated: RoomInfo[], roomsAdded: RoomInfo[], roomsRemoved: RoomInfo[]) {
     this.logger.debug('Rooms updated:', rooms.length, rooms[0]?.name, roomsUpdated, roomsAdded, roomsRemoved)
+
+    for (const addedRoom of roomsAdded) {
+      const playerTracker = new PlayerTracker(this.#region, addedRoom.name)
+      const onActorLeave = () => {
+        if (!playerTracker.destroyed) return
+
+        playerTracker.client.off('actorLeave', onActorLeave)
+
+        this.playerTrackers = this.playerTrackers.filter(tracker => tracker.room === playerTracker.room)
+      }
+      playerTracker.client.on('actorLeave', onActorLeave)
+
+      this.playerTrackers.push(playerTracker)
+    }
 
     if (roomsAdded.length === 1) this.setCurrentQueue(roomsAdded[0])
     else if (roomsAdded.length > 1) {

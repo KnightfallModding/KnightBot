@@ -8,12 +8,6 @@ import { container } from '@sapphire/framework'
 import { cyan } from 'colorette'
 import { type APIUser, type Guild, type User } from 'discord.js'
 
-/**
- * Picks a random item from an array
- * @param array The array to pick a random item from
- * @example
- * const randomEntry = pickRandom([1, 2, 3, 4]) // 1
- */
 export const pickRandom = <T>(array: readonly T[]): T => {
   const { length } = array
 
@@ -36,7 +30,7 @@ export const logSuccessCommand = (
   )
 }
 
-export function getSuccessLoggerData(guild: Guild | null, user: User, command: Command) {
+export const getSuccessLoggerData = (guild: Guild | null, user: User, command: Command) => {
   const shard = getShardInfo(guild?.shardId ?? 0)
   const commandName = getCommandInfo(command)
   const author = getAuthorInfo(user)
@@ -62,6 +56,71 @@ const getGuildInfo = (guild: Guild | null) => {
   return `${guild.name}[${cyan(guild.id)}]`
 }
 
-export function toFixed(value: number) {
+export const toFixed = (value: number) => {
   return parseFloat(value.toFixed(2))
+}
+
+const NOPARSE_CLOSE = '</noparse>'
+
+// case-insensitive search that only ever lowercases fixed-size windows: lowercasing the
+// whole string would misalign indices, since toLowerCase() can change length ('İ' → 'i̇')
+const findNoparseEnd = (text: string, from: number) => {
+  let index = from
+
+  while (true) {
+    const candidate = text.indexOf('<', index)
+
+    if (candidate === -1) return -1
+    if (text.slice(candidate, candidate + NOPARSE_CLOSE.length).toLowerCase() === NOPARSE_CLOSE) return candidate
+
+    index = candidate + 1
+  }
+}
+
+export const sanitizeTMPTags = (text: string) => {
+  let result = ''
+  let index = 0
+  // cached position of the last '>' search, so a flood of '<' with no '>' after it
+  // is scanned once instead of once per '<'
+  let gt = 0
+
+  while (index < text.length) {
+    const open = text.indexOf('<', index)
+
+    if (open === -1) {
+      result += text.slice(index)
+      break
+    }
+
+    result += text.slice(index, open)
+
+    if (gt !== -1 && gt <= open) gt = text.indexOf('>', open + 1)
+
+    const close = gt
+    const nextOpen = text.indexOf('<', open + 1)
+
+    // no '>' before the next '<' or the end of the string → malformed tag, drop it
+    if (close === -1 || (nextOpen !== -1 && nextOpen < close)) {
+      index = nextOpen === -1 ? text.length : nextOpen
+      continue
+    }
+
+    // TMP renders everything inside <noparse> verbatim, so that content is visible text
+    if (text.slice(open + 1, close).toLowerCase() === 'noparse') {
+      const end = findNoparseEnd(text, close + 1)
+
+      if (end === -1) {
+        result += text.slice(close + 1)
+        break
+      }
+
+      result += text.slice(close + 1, end)
+      index = end + NOPARSE_CLOSE.length
+      continue
+    }
+
+    index = close + 1
+  }
+
+  return result.trim()
 }
