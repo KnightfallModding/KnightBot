@@ -7,7 +7,7 @@ import { dev } from '$lib/constants'
 import '$lib/queue-detector'
 
 @ApplyOptions<Listener.Options>({ once: true })
-export class UserEvent extends Listener {
+export class ClientReadyEvent extends Listener {
   private readonly style = dev ? yellow : blue
 
   public override async run() {
