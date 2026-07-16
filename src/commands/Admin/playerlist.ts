@@ -12,7 +12,7 @@ import { maxPlayers } from 'commands/General/queue'
   description: 'List all the players in public lobbies',
   preconditions: ['OwnerOnly'],
 })
-export class UserCommand extends Command {
+export class PlayerListCommand extends Command {
   public override registerApplicationCommands(registry: Command.Registry) {
     registry.registerChatInputCommand(builder =>
       builder //
