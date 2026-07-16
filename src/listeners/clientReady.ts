@@ -5,9 +5,10 @@ import { blue, gray, green, magenta, magentaBright, white, yellow } from 'colore
 
 import { dev } from '$lib/constants'
 import '$lib/queue-detector'
+import { Events } from 'discord.js'
 
 @ApplyOptions<Listener.Options>({ once: true })
-export class ClientReadyEvent extends Listener {
+export class ClientReadyEvent extends Listener<typeof Events.ClientReady> {
   private readonly style = dev ? yellow : blue
 
   public override async run() {
