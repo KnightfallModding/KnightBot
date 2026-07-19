@@ -36,5 +36,8 @@ declare module '@skyra/env-utilities' {
     PHOTON_QUEUE_TIMER: NumberString
 
     BOT_CHANNEL_ID: Snowflake
+
+    DATABASE_PASSWORD: string
+    DATABASE_URL: string
   }
 }
