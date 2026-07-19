@@ -1,5 +1,5 @@
 import { defineRelations } from 'drizzle-orm'
 
-import { configs } from './schema'
+import { configs, events } from './schema'
 
-export const relations = defineRelations({ configs })
+export const relations = defineRelations({ configs, events })

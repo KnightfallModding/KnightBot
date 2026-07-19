@@ -2,25 +2,29 @@ import { ApplyOptions } from '@sapphire/decorators'
 import { Listener } from '@sapphire/framework'
 import type { StoreRegistryValue } from '@sapphire/pieces'
 import { blue, gray, green, magenta, magentaBright, white, yellow } from 'colorette'
+import { Events } from 'discord.js'
 
 import { dev } from '$lib/constants'
+import { syncEvents } from '$lib/events'
+
 import '$lib/queue-detector'
-import { Events } from 'discord.js'
 
 @ApplyOptions<Listener.Options>({ once: true })
 export class ClientReadyEvent extends Listener<typeof Events.ClientReady> {
   private readonly style = dev ? yellow : blue
 
   public override async run() {
-    this.printBanner()
-    this.printStoreDebugInformation()
+    this.#printBanner()
+    this.#printStoreDebugInformation()
 
     for (const guild of this.container.client.guilds.cache.values()) {
       await guild.members.fetch()
     }
+
+    await syncEvents()
   }
 
-  private printBanner() {
+  #printBanner() {
     const success = green('+')
 
     const llc = dev ? magentaBright : white
@@ -42,16 +46,16 @@ ${line03}${dev ? ` ${pad}${blc('<')}${llc('/')}${blc('>')} ${llc('DEVELOPMENT MO
     )
   }
 
-  private printStoreDebugInformation() {
+  #printStoreDebugInformation() {
     const { client, logger } = this.container
     const stores = [...client.stores.values()]
     const last = stores.pop()!
 
-    for (const store of stores) logger.info(this.styleStore(store, false))
-    logger.info(this.styleStore(last, true))
+    for (const store of stores) logger.info(this.#styleStore(store, false))
+    logger.info(this.#styleStore(last, true))
   }
 
-  private styleStore(store: StoreRegistryValue, last: boolean) {
+  #styleStore(store: StoreRegistryValue, last: boolean) {
     return gray(`${last ? '└─' : '├─'} Loaded ${this.style(store.size.toString().padEnd(3, ' '))} ${store.name}.`)
   }
 }

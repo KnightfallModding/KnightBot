@@ -8,7 +8,8 @@ import { Attachment, AttachmentBuilder, MessageFlags, type ModalSubmitInteractio
 
 import { db } from 'db/client'
 import { configs } from 'db/schema'
-import { eventTemplate, rootDir } from 'lib/constants'
+import { bannerMaxFilesize, eventTemplate, rootDir } from 'lib/constants'
+import { occurrence } from 'lib/schedule'
 
 @ApplyOptions<InteractionHandler.Options>({
   interactionHandlerType: InteractionHandlerTypes.ModalSubmit,
@@ -31,15 +32,37 @@ export class ConfigHandler extends InteractionHandler {
       banner: await this.#getImageBytes(bannerUpload),
     } satisfies Partial<typeof configs.$inferInsert>
 
-    await db.insert(configs).values({ guildId, name, description, location }).onConflictDoUpdate({
-      target: configs.guildId,
-      set: data,
-    })
+    const { eventId } = (await db.query.events.findFirst({
+      columns: { eventId: true },
+      where: { guildId },
+      orderBy: { startsAt: 'desc' },
+    })) ?? { eventId: null }
+
+    const [config] = await db
+      .insert(configs)
+      .values({ guildId, name, description, location })
+      .onConflictDoUpdate({
+        target: configs.guildId,
+        set: data,
+      })
+      .returning()
+
+    occurrence
+
+    if (eventId)
+      interaction.guild.scheduledEvents.fetch(eventId).then(event =>
+        event.edit({
+          name: config.name,
+          description: config.description,
+          entityMetadata: { location: config.location },
+          image: config.banner ?? eventTemplate.banner,
+        })
+      )
 
     await interaction.reply({
-      content: 'Configuration has been updated successfully.',
-      flags: [MessageFlags.Ephemeral],
+      content: 'Configuration has been updated successfully. Current or updated banner has been attached.',
       files: [new AttachmentBuilder(data.banner)],
+      flags: [MessageFlags.Ephemeral],
     })
   }
 
@@ -51,7 +74,7 @@ export class ConfigHandler extends InteractionHandler {
 
   async #getImageBytes(upload?: Attachment) {
     const defaultImage = await readFile(join(rootDir, 'assets', 'banner.jpg'))
-    if (!upload || !upload.contentType?.startsWith('image/')) return defaultImage
+    if (!upload || !upload.contentType?.startsWith('image/') || upload?.size > bannerMaxFilesize) return defaultImage
 
     return fetch(upload.url, FetchResultTypes.Buffer).catch(() => defaultImage)
   }
