@@ -1,0 +1,1 @@
+ALTER TABLE "keywords" ALTER COLUMN "strict" SET NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE "keywords" ALTER COLUMN "config_id" SET DATA TYPE uuid USING "config_id"::uuid;

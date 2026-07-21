@@ -17,7 +17,13 @@ Remember to change region to ${bold('North America')}!
 `,
   location: 'Knightfall: A Daring Journey',
   banner: await readFile(join(rootDir, 'assets', 'banner.jpg')),
+  reminder: `Click "${bold('Interested')}" to receive a notification when the next event start!
+
+[Event link({{event}})`,
 } as const
 
 /** Filesize is maximum 10 MB */
 export const bannerMaxFilesize = 10485760
+
+export const keywordActions = ['add', 'edit', 'remove'] as const
+export type KeywordAction = (typeof keywordActions)[number]
