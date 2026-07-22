@@ -19,7 +19,7 @@ Remember to change region to ${bold('North America')}!
   banner: await readFile(join(rootDir, 'assets', 'banner.jpg')),
   reminder: `Click "${bold('Interested')}" to receive a notification when the next event start!
 
-[Event link({{event}})`,
+[Event link]({{event}})`,
 } as const
 
 /** Filesize is maximum 10 MB */

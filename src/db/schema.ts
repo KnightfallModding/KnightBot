@@ -52,8 +52,9 @@ export const keywords = snakeCase.table(
     configId: uuid()
       .notNull()
       .references(() => configs.id, { onDelete: 'cascade' }),
-    content: varchar({ length: 100 }).notNull(),
+    content: varchar({ length: 200 }).notNull(),
     strict: boolean('strict').notNull().default(false),
+    regex: boolean('regex').notNull().default(false),
 
     createdAt: date().defaultNow(),
     updatedAt: date()

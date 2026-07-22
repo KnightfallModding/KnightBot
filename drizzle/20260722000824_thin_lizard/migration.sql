@@ -1,0 +1,1 @@
+ALTER TABLE "keywords" ADD COLUMN "regex" boolean DEFAULT false NOT NULL;

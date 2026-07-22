@@ -6,7 +6,7 @@ import type {
 } from '@sapphire/framework'
 import { container } from '@sapphire/framework'
 import { cyan } from 'colorette'
-import { type APIUser, type Guild, type User } from 'discord.js'
+import { Colors, EmbedBuilder, type APIUser, type Guild, type User } from 'discord.js'
 
 export const pickRandom = <T>(array: readonly T[]): T => {
   const { length } = array
@@ -124,3 +124,15 @@ export const sanitizeTMPTags = (text: string) => {
 
   return result.trim()
 }
+
+export const createSuccessEmbed = (message: string) =>
+  new EmbedBuilder() //
+    .setColor(Colors.Green)
+    .setDescription(message)
+    .setTimestamp(Date.now())
+
+export const createErrorEmbed = (message: string) =>
+  new EmbedBuilder() //
+    .setColor(Colors.Red)
+    .setDescription(message)
+    .setTimestamp(Date.now())

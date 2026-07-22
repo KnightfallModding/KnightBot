@@ -17,6 +17,7 @@ import { eq, or } from 'drizzle-orm'
 import { KeywordAction } from '$lib/constants'
 import { db } from 'db/client'
 import { keywords } from 'db/schema'
+import { createErrorEmbed } from 'lib/utils'
 
 @ApplyOptions<Command.Options>({
   name: 'keywords',
@@ -105,7 +106,7 @@ export class UserCommand extends Command {
           .then(commands => commands.find(command => command.name === 'config'))
 
         return interaction.reply({
-          content: `This server hasn't been configured yet. Please run ${command}`,
+          embeds: [createErrorEmbed(`This server hasn't been configured yet. Please run ${command}`)],
           flags: MessageFlags.Ephemeral,
         })
       }
@@ -120,13 +121,12 @@ export class UserCommand extends Command {
           id: true,
           content: true,
           strict: true,
+          regex: true,
         },
       })
       if (!keyword) {
-        const embed = new EmbedBuilder().setColor(Colors.Red).setDescription('The passed keyword does not exist.')
-
         return interaction.reply({
-          embeds: [embed],
+          embeds: [createErrorEmbed('The passed keyword does not exist.')],
           flags: MessageFlags.Ephemeral,
         })
       }
@@ -173,16 +173,18 @@ export class UserCommand extends Command {
       .setTitle('Add a new keyword')
       .addLabelComponents(
         this.#createContentLabel(this.#createContentInput()),
-        this.#createStrictLabel(this.#createStrictCheckbox())
+        this.#createStrictLabel(this.#createStrictCheckbox()),
+        this.#createRegexLabel(this.#createRegexCheckbox())
       )
   }
-  #createEditModal(keyword: Pick<typeof keywords.$inferSelect, 'id' | 'content' | 'strict'>) {
+  #createEditModal(keyword: Pick<typeof keywords.$inferSelect, 'id' | 'content' | 'strict' | 'regex'>) {
     return new ModalBuilder() //
       .setCustomId(this.#prefix + '-edit-' + keyword.id)
       .setTitle('Add a new keyword')
       .addLabelComponents(
         this.#createContentLabel(this.#createContentInput().setValue(keyword.content)),
-        this.#createStrictLabel(this.#createStrictCheckbox().setDefault(keyword.strict))
+        this.#createStrictLabel(this.#createStrictCheckbox().setDefault(keyword.strict)),
+        this.#createRegexLabel(this.#createRegexCheckbox().setDefault(keyword.regex))
       )
   }
 
@@ -191,7 +193,7 @@ export class UserCommand extends Command {
       .setCustomId('content')
       .setStyle(TextInputStyle.Short)
       .setMinLength(3)
-      .setMaxLength(20)
+      .setMaxLength(200)
       .setRequired(true)
   }
 
@@ -208,10 +210,25 @@ export class UserCommand extends Command {
       .setDefault(false)
   }
 
+  #createRegexCheckbox() {
+    return new CheckboxBuilder() //
+      .setCustomId('regex')
+      .setDefault(false)
+  }
+
   #createStrictLabel(checkbox: CheckboxBuilder) {
     return new LabelBuilder()
       .setLabel('Strict')
-      .setDescription('Check to make the message trigger ONLY if strictly equal to the keyword')
+      .setDescription('Enable to make the message trigger ONLY if strictly equal to the keyword')
+      .setCheckboxComponent(checkbox)
+  }
+
+  #createRegexLabel(checkbox: CheckboxBuilder) {
+    return new LabelBuilder()
+      .setLabel('Regex')
+      .setDescription(
+        'Enable to enable Regex. Regex offers more advanced keyword detections but is for advanced users.'
+      )
       .setCheckboxComponent(checkbox)
   }
 }
