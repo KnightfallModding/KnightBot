@@ -1,7 +1,7 @@
 import { pickRandom } from '@sapphire/utilities'
 
 import { Actor, ConnectionProtocol, EventCode, Logger, LogLevel, PhotonClient } from './photon'
-import { appId, appVersion, Regions } from './queue-detector'
+import { appId, appVersion, queueDetectors, Regions } from './queue-detector'
 
 interface Player {
   id: number
@@ -42,18 +42,26 @@ export class PlayerTracker {
     })
     this.client.myActor.setName('<color=green>KnightBot</color> <color=blue>Tracker</color>')
 
-    this.#connect(Regions[region])
+    this.#connect(region)
     this.client.on('actorJoin', this.#onActorJoin)
     this.client.on('actorPropertiesChange', this.#onActorPropertiesChange)
     this.client.on('event', this.#onEvent)
     this.client.on('actorLeave', this.#onActorLeave)
   }
 
-  async #connect(region: Regions) {
+  async #connect(region: keyof typeof Regions) {
     try {
-      await this.client.connectToRegionMaster(region)
+      await this.client.connectToRegionMaster(Regions[region])
       const room = await this.client.joinRoom(this.originalRoomName)
       this.#masterClientId = room.masterClientId
+
+      const queueDetector = queueDetectors[region]
+      // Always remove the bot from the amount of players
+      queueDetector.players.active--
+      // If the room just joined is the current queue, prevent bot from showing in the amount of players in the room
+      if (this.originalRoomName === queueDetector.currentQueue?.name) {
+        queueDetector.currentQueue.players--
+      }
 
       for (const { actorNr, name, isLocal } of this.client.actors.values()) {
         if (isLocal) continue
