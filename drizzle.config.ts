@@ -17,5 +17,4 @@ export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
   dbCredentials: { url: envParseString('DATABASE_URL') },
-  casing: 'snake_case',
 })
