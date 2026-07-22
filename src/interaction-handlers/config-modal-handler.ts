@@ -70,8 +70,12 @@ export class ConfigHandler extends InteractionHandler {
     const fileType = await fileTypeFromBuffer(data.banner)
     const attachment = new AttachmentBuilder(data.banner, { name: `image.${fileType?.ext}` })
 
-    const embed = createSuccessEmbed(`Configuration has been updated successfully.
-Current or updated banner has been attached.`).setImage(`attachment://${attachment.name}`)
+    const embed = createSuccessEmbed(
+      [
+        'Configuration has been updated successfully.', //
+        'Current or updated banner has been attached.',
+      ].join('\n')
+    ).setImage(`attachment://${attachment.name}`)
 
     await interaction.reply({
       embeds: [embed],
