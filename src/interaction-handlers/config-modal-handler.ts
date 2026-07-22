@@ -5,16 +5,24 @@ import { ApplyOptions } from '@sapphire/decorators'
 import { fetch, FetchResultTypes } from '@sapphire/fetch'
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework'
 import { Attachment, AttachmentBuilder, MessageFlags, type ModalSubmitInteraction } from 'discord.js'
+import { fileTypeFromBuffer } from 'file-type'
 
 import { db } from 'db/client'
 import { configs } from 'db/schema'
 import { bannerMaxFilesize, eventTemplate, rootDir } from 'lib/constants'
 import { occurrence } from 'lib/schedule'
+import { createSuccessEmbed } from 'lib/utils'
 
 @ApplyOptions<InteractionHandler.Options>({
   interactionHandlerType: InteractionHandlerTypes.ModalSubmit,
 })
 export class ConfigHandler extends InteractionHandler {
+  public override parse(interaction: ModalSubmitInteraction) {
+    if (!interaction.customId.startsWith('config-')) return this.none()
+
+    return this.some()
+  }
+
   public async run(interaction: ModalSubmitInteraction) {
     if (!interaction.inCachedGuild()) return
 
@@ -59,17 +67,17 @@ export class ConfigHandler extends InteractionHandler {
         })
       )
 
+    const fileType = await fileTypeFromBuffer(data.banner)
+    const attachment = new AttachmentBuilder(data.banner, { name: `image.${fileType?.ext}` })
+
+    const embed = createSuccessEmbed(`Configuration has been updated successfully.
+Current or updated banner has been attached.`).setImage(`attachment://${attachment.name}`)
+
     await interaction.reply({
-      content: 'Configuration has been updated successfully. Current or updated banner has been attached.',
-      files: [new AttachmentBuilder(data.banner)],
+      embeds: [embed],
       flags: [MessageFlags.Ephemeral],
+      files: [attachment],
     })
-  }
-
-  public override parse(interaction: ModalSubmitInteraction) {
-    if (!interaction.customId.startsWith('config-')) return this.none()
-
-    return this.some()
   }
 
   async #getImageBytes(upload?: Attachment) {
