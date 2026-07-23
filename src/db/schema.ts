@@ -5,8 +5,17 @@ import { boolean, bytea, date, pgEnum, snakeCase, timestamp, unique, uuid, varch
 import { eventTemplate } from '$lib/constants'
 import { Day } from '$lib/schedule'
 
-export const configs = snakeCase.table('configs', {
+const defaultSchema = {
   id: uuid().primaryKey().defaultRandom(),
+
+  createdAt: date().defaultNow(),
+  updatedAt: date()
+    .defaultNow()
+    .$onUpdate(() => sql`NOW()`),
+}
+
+export const configs = snakeCase.table('configs', {
+  ...defaultSchema,
 
   guildId: varchar({ length: 20 }).unique().notNull(),
   name: varchar({ length: 20 }).notNull().default(eventTemplate.name),
@@ -14,11 +23,6 @@ export const configs = snakeCase.table('configs', {
   location: varchar({ length: 30 }).notNull().default(eventTemplate.location),
   banner: bytea('banner').notNull().default(eventTemplate.banner),
   reminder: varchar({ length: 2000 }).notNull().default(eventTemplate.reminder),
-
-  createdAt: date().defaultNow(),
-  updatedAt: date()
-    .defaultNow()
-    .$onUpdate(() => sql`NOW()`),
 })
 
 export const dayEnum = pgEnum('day', objectKeys(Day) as [keyof typeof Day, ...Array<keyof typeof Day>])
@@ -26,7 +30,7 @@ export const dayEnum = pgEnum('day', objectKeys(Day) as [keyof typeof Day, ...Ar
 export const events = snakeCase.table(
   'events',
   {
-    id: uuid().primaryKey().defaultRandom(),
+    ...defaultSchema,
 
     guildId: varchar({ length: 20 })
       .notNull()
@@ -35,11 +39,6 @@ export const events = snakeCase.table(
     eventId: varchar({ length: 20 }),
     day: dayEnum().notNull(),
     startsAt: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
-
-    createdAt: date().defaultNow(),
-    updatedAt: date()
-      .defaultNow()
-      .$onUpdate(() => sql`NOW()`),
   },
   table => [unique().on(table.guildId, table.startsAt)]
 )
@@ -47,7 +46,7 @@ export const events = snakeCase.table(
 export const keywords = snakeCase.table(
   'keywords',
   {
-    id: uuid().primaryKey().defaultRandom(),
+    ...defaultSchema,
 
     configId: uuid()
       .notNull()
@@ -55,11 +54,6 @@ export const keywords = snakeCase.table(
     content: varchar({ length: 200 }).notNull(),
     strict: boolean('strict').notNull().default(false),
     regex: boolean('regex').notNull().default(false),
-
-    createdAt: date().defaultNow(),
-    updatedAt: date()
-      .defaultNow()
-      .$onUpdate(() => sql`NOW()`),
   },
   table => [unique().on(table.configId, table.content)]
 )
