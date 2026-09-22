@@ -27,3 +27,15 @@ export const bannerMaxFilesize = 10485760
 
 export const keywordActions = ['add', 'edit', 'remove'] as const
 export type KeywordAction = (typeof keywordActions)[number]
+
+export enum HoneypotMode {
+  SOFT_BAN = 'Kick + Delete',
+  HARD_BAN = 'Ban',
+}
+export type HoneypotModeKey = keyof typeof HoneypotMode
+
+export enum HoneypotIgnoreType {
+  USER = 'User',
+  ROLE = 'Role',
+}
+export type HoneypotIgnoreTypeKey = keyof typeof HoneypotIgnoreType

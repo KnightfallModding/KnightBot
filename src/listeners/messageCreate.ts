@@ -1,8 +1,9 @@
 import { ApplyOptions } from '@sapphire/decorators'
 import { Events, Listener } from '@sapphire/framework'
-import { Message, PermissionsBitField } from 'discord.js'
+import { Message, PermissionFlagsBits, PermissionsBitField } from 'discord.js'
 
 import { db } from 'db/client'
+import { HoneypotModeKey } from 'lib/constants'
 
 @ApplyOptions<Listener.Options>({})
 export class UserEvent extends Listener<typeof Events.MessageCreate> {
@@ -15,9 +16,12 @@ export class UserEvent extends Listener<typeof Events.MessageCreate> {
 
     const config = await db.query.configs.findFirst({
       where: { guildId },
-      columns: { id: true, reminder: true },
+      columns: { id: true, reminder: true, honeypotMode: true, honeypotChannelId: true },
     })
     if (!config) return
+
+    if (message.channelId === config.honeypotChannelId && config.honeypotMode)
+      return this.#PunishHoneypotSpam(message, config.honeypotMode)
 
     const keywords = await db.query.keywords.findMany({
       where: { configId: config.id },
@@ -53,5 +57,19 @@ export class UserEvent extends Listener<typeof Events.MessageCreate> {
       if (keyword.strict && keywordContent === messageContent) return reply()
       if (!keyword.strict && messageContent.includes(keywordContent)) return reply()
     }
+  }
+
+  async #PunishHoneypotSpam(message: Message<true>, mode: HoneypotModeKey) {
+    if (!message.inGuild()) return
+
+    const self = await message.guild.members.fetchMe()
+    self.permissions.has(PermissionFlagsBits.BanMembers)
+
+    message.member!.ban({
+      reason: 'Message caught in honeypot channel. The last 10 minutes have been deleted.',
+      deleteMessageSeconds: 600,
+    })
+
+    if (mode === 'SOFT_BAN') message.guild.members.unban(message.author.id)
   }
 }

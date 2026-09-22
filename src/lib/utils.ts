@@ -5,6 +5,7 @@ import type {
   MessageCommandSuccessPayload,
 } from '@sapphire/framework'
 import { container } from '@sapphire/framework'
+import { objectKeys } from '@sapphire/utilities'
 import { cyan } from 'colorette'
 import { Colors, EmbedBuilder, type APIUser, type Guild, type User } from 'discord.js'
 
@@ -136,3 +137,6 @@ export const createErrorEmbed = (message: string) =>
     .setColor(Colors.Red)
     .setDescription(message)
     .setTimestamp(Date.now())
+
+export const enumKeys = <T extends Record<string, string | number>>(value: T) =>
+  objectKeys(value) as unknown as [keyof T, ...Array<keyof T>]

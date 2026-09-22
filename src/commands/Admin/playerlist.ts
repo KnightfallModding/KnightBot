@@ -6,6 +6,7 @@ import { AutocompleteInteraction, bold, Colors, EmbedBuilder, MessageFlags } fro
 import { queueDetectors, Regions } from '$lib/queue-detector'
 import { sanitizeTMPTags } from '$lib/utils'
 import { maxPlayers } from 'commands/General/queue'
+import { PlayerTracker } from 'lib/player-tracker'
 
 @ApplyOptions<Command.Options>({
   name: 'playerlist',
@@ -52,6 +53,8 @@ export class PlayerListCommand extends Command {
   }
 
   public override async chatInputRun(interaction: Command.ChatInputCommandInteraction) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
     const region = cast<keyof typeof Regions>(interaction.options.getString('region') ?? 'NA')
     const lobby = this.#getRoom(region, interaction.options.getString('lobby'))
     const hidden = interaction.options.getBoolean('hidden') ?? true
@@ -78,7 +81,7 @@ export class PlayerListCommand extends Command {
         .setFooter({ text: `${lobby.client.room.playerCount} / ${maxPlayers} players` })
     }
 
-    return interaction.reply({
+    return interaction.editReply({
       embeds: [embed],
       flags: hidden ? [MessageFlags.Ephemeral] : [],
     })
@@ -87,11 +90,15 @@ export class PlayerListCommand extends Command {
   #getRoom(region: keyof typeof Regions, name: string | null) {
     const { currentQueue, playerTrackers } = queueDetectors[region]
 
-    if (name)
-      return (
-        playerTrackers.find(playerTracker => playerTracker.originalRoomName === name) ??
-        playerTrackers.find(playerTracker => playerTracker.originalRoomName === currentQueue?.name)
-      )
+    if (name) {
+      let tracker = playerTrackers.find(playerTracker => playerTracker.originalRoomName === name)
+      if (!tracker) {
+        tracker = new PlayerTracker(region, name)
+        playerTrackers.push(tracker)
+
+        return tracker
+      }
+    }
 
     return playerTrackers.find(playerTracker => playerTracker.originalRoomName === currentQueue?.name)
   }

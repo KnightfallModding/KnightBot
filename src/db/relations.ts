@@ -1,5 +1,17 @@
 import { defineRelations } from 'drizzle-orm'
 
-import { configs, events, keywords } from './schema'
+import { configs, events, honeypotIgnores, honeypotVictims, keywords } from './schema'
 
-export const relations = defineRelations({ configs, events, keywords })
+const schema = { configs, keywords, honeypotsVictims: honeypotVictims, honeypotIgnores, events }
+
+export const relations = defineRelations(schema, ({ one, many }) => {
+  return {
+    configs: {
+      honeypotsVictims: many.honeypotsVictims(),
+      honeypotIgnores: many.honeypotIgnores(),
+    },
+    honeypotsVictims: {
+      configs: one.configs(),
+    },
+  }
+})

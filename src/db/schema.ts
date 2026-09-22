@@ -1,42 +1,50 @@
-import { objectKeys } from '@sapphire/utilities'
 import { sql } from 'drizzle-orm'
-import { boolean, bytea, date, pgEnum, snakeCase, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
+import { boolean, bytea, pgEnum, snakeCase, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
 
-import { eventTemplate } from '$lib/constants'
+import { eventTemplate, HoneypotIgnoreType, HoneypotMode } from '$lib/constants'
 import { Day } from '$lib/schedule'
+import { enumKeys } from '$lib/utils'
+
+const snowflakeVarchar = () => varchar({ length: 20 })
 
 const defaultSchema = {
   id: uuid().primaryKey().defaultRandom(),
 
-  createdAt: date().defaultNow(),
-  updatedAt: date()
+  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp({ withTimezone: true })
     .defaultNow()
+    .notNull()
     .$onUpdate(() => sql`NOW()`),
 }
+
+export const honeypotModeEnum = pgEnum('mode', enumKeys(HoneypotMode))
 
 export const configs = snakeCase.table('configs', {
   ...defaultSchema,
 
-  guildId: varchar({ length: 20 }).unique().notNull(),
-  name: varchar({ length: 20 }).notNull().default(eventTemplate.name),
-  description: varchar({ length: 500 }).notNull().default(eventTemplate.description),
-  location: varchar({ length: 30 }).notNull().default(eventTemplate.location),
-  banner: bytea('banner').notNull().default(eventTemplate.banner),
+  guildId: snowflakeVarchar().unique().notNull(),
+  name: varchar({ length: 100 }).notNull().default(eventTemplate.name),
+  description: varchar({ length: 1000 }).notNull().default(eventTemplate.description),
+  location: varchar({ length: 100 }).notNull().default(eventTemplate.location),
+  banner: bytea().notNull().default(eventTemplate.banner),
   reminder: varchar({ length: 2000 }).notNull().default(eventTemplate.reminder),
+
+  honeypotChannelId: varchar({ length: 20 }),
+  honeypotMode: honeypotModeEnum(),
 })
 
-export const dayEnum = pgEnum('day', objectKeys(Day) as [keyof typeof Day, ...Array<keyof typeof Day>])
+export const dayEnum = pgEnum('day', enumKeys(Day))
 
 export const events = snakeCase.table(
   'events',
   {
     ...defaultSchema,
 
-    guildId: varchar({ length: 20 })
+    guildId: snowflakeVarchar()
       .notNull()
       .references(() => configs.guildId, { onDelete: 'cascade' }),
     /** The event ID in Discord. If `null`, it means the event happened when bot was down */
-    eventId: varchar({ length: 20 }),
+    eventId: snowflakeVarchar(),
     day: dayEnum().notNull(),
     startsAt: timestamp({ withTimezone: true, mode: 'date' }).notNull(),
   },
@@ -52,8 +60,38 @@ export const keywords = snakeCase.table(
       .notNull()
       .references(() => configs.id, { onDelete: 'cascade' }),
     content: varchar({ length: 200 }).notNull(),
-    strict: boolean('strict').notNull().default(false),
-    regex: boolean('regex').notNull().default(false),
+    strict: boolean().notNull().default(false),
+    regex: boolean().notNull().default(false),
   },
   table => [unique().on(table.configId, table.content)]
+)
+
+export const honeypotVictims = snakeCase.table(
+  'honeypotsVictims',
+  {
+    ...defaultSchema,
+
+    configId: uuid()
+      .notNull()
+      .references(() => configs.id, { onDelete: 'cascade' }),
+    userId: snowflakeVarchar().notNull(),
+    mode: honeypotModeEnum().notNull(),
+  },
+  table => [unique().on(table.configId, table.userId)]
+)
+
+export const ignoreTypeEnum = pgEnum('ignoreType', enumKeys(HoneypotIgnoreType))
+
+export const honeypotIgnores = snakeCase.table(
+  'honeypotIgnores',
+  {
+    ...defaultSchema,
+
+    configId: uuid()
+      .notNull()
+      .references(() => configs.id, { onDelete: 'cascade' }),
+    type: ignoreTypeEnum().notNull(),
+    ignoredId: snowflakeVarchar().notNull(),
+  },
+  table => [unique().on(table.configId, table.type, table.ignoredId)]
 )

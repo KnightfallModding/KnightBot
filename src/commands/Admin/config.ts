@@ -5,13 +5,14 @@ import {
   InteractionContextType,
   LabelBuilder,
   ModalBuilder,
+  PermissionFlagsBits,
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js'
 
 import { db } from 'db/client'
 import { configs } from 'db/schema'
-import { eventTemplate } from 'lib/constants'
+import { dev, eventTemplate } from 'lib/constants'
 
 @ApplyOptions<Command.Options>({
   name: 'config',
@@ -25,6 +26,7 @@ export class ConfigCommand extends Command {
         .setName(this.name)
         .setDescription(this.description.replaceAll('{{bot}}', this.container.client.user?.username ?? 'KnightBot'))
         .setContexts(InteractionContextType.Guild)
+        .setDefaultMemberPermissions(dev ? undefined : PermissionFlagsBits.Administrator)
     )
   }
 
@@ -43,7 +45,7 @@ export class ConfigCommand extends Command {
         this.#createDescriptionLabel(config),
         this.#createLocationLabel(config),
         this.#createReminderLabel(config),
-        this.#createBannerUpload()
+        this.#createBannerUploadLabel()
       )
 
     return interaction.showModal(modal)
@@ -110,7 +112,7 @@ export class ConfigCommand extends Command {
       .setTextInputComponent(input)
   }
 
-  #createBannerUpload() {
+  #createBannerUploadLabel() {
     const upload = new FileUploadBuilder() //
       .setCustomId('banner')
       .setMinValues(1)
