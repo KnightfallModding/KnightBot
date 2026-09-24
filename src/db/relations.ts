@@ -4,14 +4,23 @@ import { configs, events, honeypotIgnores, honeypotVictims, keywords } from './s
 
 const schema = { configs, keywords, honeypotsVictims: honeypotVictims, honeypotIgnores, events }
 
-export const relations = defineRelations(schema, ({ one, many }) => {
+export const relations = defineRelations(schema, r => {
   return {
     configs: {
-      honeypotsVictims: many.honeypotsVictims(),
-      honeypotIgnores: many.honeypotIgnores(),
+      honeypotsVictims: r.many.honeypotsVictims(),
+      honeypotIgnores: r.many.honeypotIgnores(),
     },
     honeypotsVictims: {
-      configs: one.configs(),
+      configs: r.one.configs({
+        from: r.honeypotsVictims.configId,
+        to: r.configs.id,
+      }),
+    },
+    honeypotIgnores: {
+      configs: r.one.configs({
+        from: r.honeypotIgnores.configId,
+        to: r.configs.id,
+      }),
     },
   }
 })

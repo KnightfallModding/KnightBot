@@ -8,6 +8,10 @@ import { container } from '@sapphire/framework'
 import { objectKeys } from '@sapphire/utilities'
 import { cyan } from 'colorette'
 import { Colors, EmbedBuilder, type APIUser, type Guild, type User } from 'discord.js'
+import { SQL, sql } from 'drizzle-orm'
+import { PgTable } from 'drizzle-orm/pg-core'
+
+import { db } from 'db/client'
 
 export const pickRandom = <T>(array: readonly T[]): T => {
   const { length } = array
@@ -126,17 +130,34 @@ export const sanitizeTMPTags = (text: string) => {
   return result.trim()
 }
 
-export const createSuccessEmbed = (message: string) =>
-  new EmbedBuilder() //
+export const createSuccessEmbed = (message?: string) => {
+  const embed = new EmbedBuilder() //
     .setColor(Colors.Green)
-    .setDescription(message)
     .setTimestamp(Date.now())
+  if (message) embed.setDescription(message)
 
-export const createErrorEmbed = (message: string) =>
-  new EmbedBuilder() //
+  return embed
+}
+
+export const createErrorEmbed = (message?: string) => {
+  let embed = new EmbedBuilder() //
     .setColor(Colors.Red)
-    .setDescription(message)
     .setTimestamp(Date.now())
+  if (message) embed = embed.setDescription(message)
+
+  return embed
+}
 
 export const enumKeys = <T extends Record<string, string | number>>(value: T) =>
   objectKeys(value) as unknown as [keyof T, ...Array<keyof T>]
+
+type Executor = Pick<typeof db, 'select'>
+export const exists = async (table: PgTable, where: SQL | undefined, executor: Executor = db) => {
+  const rows = await executor
+    .select({ one: sql`1` })
+    .from(table)
+    .where(where)
+    .limit(1)
+
+  return rows.length > 0
+}

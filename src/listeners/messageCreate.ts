@@ -1,12 +1,12 @@
 import { ApplyOptions } from '@sapphire/decorators'
 import { Events, Listener } from '@sapphire/framework'
-import { Message, PermissionFlagsBits, PermissionsBitField } from 'discord.js'
+import { Message, PermissionsBitField } from 'discord.js'
 
 import { db } from 'db/client'
-import { HoneypotModeKey } from 'lib/constants'
+import { configs, honeypotVictims } from 'db/schema'
 
 @ApplyOptions<Listener.Options>({})
-export class UserEvent extends Listener<typeof Events.MessageCreate> {
+export class MessageCreateEvent extends Listener<typeof Events.MessageCreate> {
   public override async run(message: Message) {
     if (!message.inGuild() || message.author.bot) return
 
@@ -21,7 +21,7 @@ export class UserEvent extends Listener<typeof Events.MessageCreate> {
     if (!config) return
 
     if (message.channelId === config.honeypotChannelId && config.honeypotMode)
-      return this.#PunishHoneypotSpam(message, config.honeypotMode)
+      return this.#punishHoneypotSpam(message, config)
 
     const keywords = await db.query.keywords.findMany({
       where: { configId: config.id },
@@ -59,17 +59,36 @@ export class UserEvent extends Listener<typeof Events.MessageCreate> {
     }
   }
 
-  async #PunishHoneypotSpam(message: Message<true>, mode: HoneypotModeKey) {
-    if (!message.inGuild()) return
+  async #punishHoneypotSpam(
+    message: Message<true>,
+    config: Required<Pick<typeof configs.$inferInsert, 'id' | 'honeypotMode'>>
+  ) {
+    if (!message.inGuild() || message.member?.bannable) return
 
-    const self = await message.guild.members.fetchMe()
-    self.permissions.has(PermissionFlagsBits.BanMembers)
+    const ignores = await db.query.honeypotIgnores.findMany({
+      where: { configId: config.id },
+      columns: {
+        ignoredId: true,
+        type: true,
+      },
+    })
+    const isIgnored = ignores.some(ignore =>
+      ignore.type === 'ROLE'
+        ? message.member?.roles.cache.has(ignore.ignoredId)
+        : message.author.id === ignore.ignoredId
+    )
+    if (isIgnored) return
 
     message.member!.ban({
       reason: 'Message caught in honeypot channel. The last 10 minutes have been deleted.',
       deleteMessageSeconds: 600,
     })
+    if (config.honeypotMode === 'SOFT_BAN') message.guild.members.unban(message.author.id)
 
-    if (mode === 'SOFT_BAN') message.guild.members.unban(message.author.id)
+    await db.insert(honeypotVictims).values({
+      configId: config.id!,
+      userId: message.author.id,
+      mode: config.honeypotMode!,
+    })
   }
 }

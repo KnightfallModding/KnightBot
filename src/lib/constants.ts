@@ -29,7 +29,7 @@ export const keywordActions = ['add', 'edit', 'remove'] as const
 export type KeywordAction = (typeof keywordActions)[number]
 
 export enum HoneypotMode {
-  SOFT_BAN = 'Kick + Delete',
+  SOFT_BAN = 'Ban + Unban',
   HARD_BAN = 'Ban',
 }
 export type HoneypotModeKey = keyof typeof HoneypotMode

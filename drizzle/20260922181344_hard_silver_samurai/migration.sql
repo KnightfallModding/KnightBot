@@ -1,0 +1,1 @@
+ALTER TABLE "keywords" ADD COLUMN "custom_message" varchar(2000);

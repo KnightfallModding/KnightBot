@@ -62,6 +62,7 @@ export const keywords = snakeCase.table(
     content: varchar({ length: 200 }).notNull(),
     strict: boolean().notNull().default(false),
     regex: boolean().notNull().default(false),
+    customMessage: varchar({ length: 2000 }),
   },
   table => [unique().on(table.configId, table.content)]
 )
